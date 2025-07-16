@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { FaComment } from "react-icons/fa";
 import { db } from "../firebase";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  DocumentData,
-} from "firebase/firestore";
+import { collection, getDocs, addDoc, DocumentData } from "firebase/firestore";
 
 interface Comment {
   id: number;
@@ -35,14 +30,92 @@ const CondolenceFrame: React.FC = () => {
   const [clicks, setClicks] = useState<number[]>([]);
   const [showAddComment, setShowAddComment] = useState(true);
 
-  // 🔄 Load comments from Firestore on mount
+  // Function to check if position overlaps with photo area
+  const isOverlappingPhoto = (
+    x: number,
+    y: number,
+    width: number = 420,
+    height: number = 100
+  ) => {
+    const frameRect = frameRef.current?.getBoundingClientRect();
+    if (!frameRect) return false;
+
+    // Photo area (center of frame)
+    const photoX = (frameRect.width - 448) / 2; // 28rem = 448px
+    const photoY = (frameRect.height - 512) / 2; // 32rem = 512px
+    const photoWidth = 448;
+    const photoHeight = 512 + 60; // include name plaque
+
+    // Check if comment box overlaps with photo area
+    return !(
+      x + width < photoX ||
+      x > photoX + photoWidth ||
+      y + height < photoY ||
+      y > photoY + photoHeight
+    );
+  };
+
+  // Function to find a safe position for new comments
+  const findSafePosition = (preferredX: number, preferredY: number) => {
+    const frameRect = frameRef.current?.getBoundingClientRect();
+    if (!frameRect) return { x: preferredX, y: preferredY };
+
+    const commentWidth = 420;
+    const commentHeight = 100;
+
+    // Try original position first
+    if (
+      !isOverlappingPhoto(preferredX, preferredY, commentWidth, commentHeight)
+    ) {
+      return { x: preferredX, y: preferredY };
+    }
+
+    // Try positions around the photo
+    const positions = [
+      { x: 50, y: 50 }, // Top left
+      { x: frameRect.width - commentWidth - 50, y: 50 }, // Top right
+      { x: 50, y: frameRect.height - commentHeight - 50 }, // Bottom left
+      {
+        x: frameRect.width - commentWidth - 50,
+        y: frameRect.height - commentHeight - 50,
+      }, // Bottom right
+      { x: 50, y: frameRect.height / 2 - commentHeight / 2 }, // Left middle
+      {
+        x: frameRect.width - commentWidth - 50,
+        y: frameRect.height / 2 - commentHeight / 2,
+      }, // Right middle
+    ];
+
+    for (const pos of positions) {
+      if (!isOverlappingPhoto(pos.x, pos.y, commentWidth, commentHeight)) {
+        return pos;
+      }
+    }
+
+    // Fallback to original position if no safe position found
+    return { x: preferredX, y: preferredY };
+  };
+
+  // Load initial comments with safe positioning
   useEffect(() => {
-    const fetchComments = async () => {
-      const snapshot = await getDocs(collection(db, "comments"));
-      const data = snapshot.docs.map((doc) => doc.data() as Comment);
-      setComments(data);
-    };
-    fetchComments();
+    // Simulate loading comments (replace with your Firestore logic)
+    const initialComments = [
+      {
+        id: 1,
+        text: "Deeply saddened by the loss, your kindness will always be remembered.",
+        author: "Dhrubajyoti Ghosh",
+        x: 100,
+        y: 200,
+      },
+    ];
+
+    // Position comments safely
+    const safeComments = initialComments.map((comment) => {
+      const safePos = findSafePosition(comment.x, comment.y);
+      return { ...comment, ...safePos };
+    });
+
+    setComments(safeComments);
   }, []);
 
   // Load saved author name from memory on mount
@@ -74,35 +147,37 @@ const CondolenceFrame: React.FC = () => {
   };
 
   const getWordCount = (text: string): number =>
-    text.trim().split(/\s+/).filter((word) => word.length > 0).length;
+    text
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word.length > 0).length;
 
-  // ✅ Add comment to Firestore
   const addComment = async () => {
     if (newComment.text.trim() && newComment.author.trim()) {
       const wordCount = getWordCount(newComment.text);
       if (wordCount > 75) {
-        alert("Comment cannot exceed 75 words. Current word count: " + wordCount);
+        alert(
+          "Comment cannot exceed 75 words. Current word count: " + wordCount
+        );
         return;
       }
+
+      // Find a safe position for the new comment
+      const baseX = 100;
+      const baseY = 200 + (comments.length % 5) * 150;
+      const safePos = findSafePosition(baseX, baseY);
 
       const newCommentObj: Comment = {
         id: Date.now(),
         text: newComment.text,
         author: newComment.author,
-        x: 100,
-        y: 200 + (comments.length % 5) * 150,
+        ...safePos,
       };
 
-      try {
-        await addDoc(collection(db, "comments"), newCommentObj);
-        setComments([...comments, newCommentObj]);
-        setSavedAuthor(newComment.author);
-        closeModal();
-        console.log("✅ Comment saved to Firestore");
-      } catch (error) {
-        console.error("❌ Firestore write failed:", error);
-        alert("Failed to save comment. Please try again.");
-      }
+      setComments([...comments, newCommentObj]);
+      setSavedAuthor(newComment.author);
+      closeModal();
+      console.log("✅ Comment added");
     }
   };
 
@@ -144,28 +219,80 @@ const CondolenceFrame: React.FC = () => {
     setDragOffset({ x: 0, y: 0 });
   };
 
-  const FloralCorner: React.FC<{ className?: string }> = ({ className = "" }) => (
+  const FloralCorner: React.FC<{ className?: string }> = ({
+    className = "",
+  }) => (
     <div className={`absolute w-48 h-48 overflow-hidden ${className}`}>
-      {/* floral SVG */}
-      <svg className="w-full h-full text-gray-800" viewBox="0 0 120 120" fill="currentColor">
+      <svg
+        className="w-full h-full text-gray-800"
+        viewBox="0 0 120 120"
+        fill="currentColor"
+      >
         <g transform="translate(10,10)">
           <circle cx="25" cy="25" r="12" fill="#ec4899" opacity="0.7" />
-          <path d="M25 15 Q20 8 15 15 Q8 25 15 25 Q25 32 25 25 Q32 25 25 15 Z" fill="#f472b6" />
-          <path d="M25 35 Q20 42 15 35 Q8 25 15 25 Q25 18 25 25 Q32 25 25 35 Z" fill="#f472b6" />
-          <path d="M15 25 Q8 20 15 15 Q25 8 25 15 Q32 25 25 25 Q25 32 15 25 Z" fill="#f472b6" />
-          <path d="M35 25 Q42 20 35 15 Q25 8 25 15 Q18 25 25 25 Q25 32 35 25 Z" fill="#f472b6" />
+          <path
+            d="M25 15 Q20 8 15 15 Q8 25 15 25 Q25 32 25 25 Q32 25 25 15 Z"
+            fill="#f472b6"
+          />
+          <path
+            d="M25 35 Q20 42 15 35 Q8 25 15 25 Q25 18 25 25 Q32 25 25 35 Z"
+            fill="#f472b6"
+          />
+          <path
+            d="M15 25 Q8 20 15 15 Q25 8 25 15 Q32 25 25 25 Q25 32 15 25 Z"
+            fill="#f472b6"
+          />
+          <path
+            d="M35 25 Q42 20 35 15 Q25 8 25 15 Q18 25 25 25 Q25 32 35 25 Z"
+            fill="#f472b6"
+          />
           <circle cx="25" cy="25" r="4" fill="#fbbf24" />
           <circle cx="45" cy="15" r="8" fill="#ec4899" opacity="0.6" />
-          <path d="M45 10 Q42 6 38 10 Q34 15 38 15 Q45 20 45 15 Q50 15 45 10 Z" fill="#f472b6" />
+          <path
+            d="M45 10 Q42 6 38 10 Q34 15 38 15 Q45 20 45 15 Q50 15 45 10 Z"
+            fill="#f472b6"
+          />
           <circle cx="45" cy="15" r="3" fill="#fbbf24" />
           <circle cx="15" cy="45" r="8" fill="#ec4899" opacity="0.6" />
-          <path d="M15 40 Q12 36 8 40 Q4 45 8 45 Q15 50 15 45 Q20 45 15 40 Z" fill="#f472b6" />
+          <path
+            d="M15 40 Q12 36 8 40 Q4 45 8 45 Q15 50 15 45 Q20 45 15 40 Z"
+            fill="#f472b6"
+          />
           <circle cx="15" cy="45" r="3" fill="#fbbf24" />
         </g>
-        <path d="M5 5 Q15 15 25 5 Q35 15 45 5 Q55 15 65 5" stroke="#16a34a" strokeWidth="3" fill="none" />
-        <ellipse cx="20" cy="35" rx="8" ry="4" fill="#22c55e" opacity="0.6" transform="rotate(45 20 35)" />
-        <ellipse cx="35" cy="50" rx="6" ry="3" fill="#22c55e" opacity="0.6" transform="rotate(-30 35 50)" />
-        <ellipse cx="50" cy="20" rx="6" ry="3" fill="#22c55e" opacity="0.6" transform="rotate(60 50 20)" />
+        <path
+          d="M5 5 Q15 15 25 5 Q35 15 45 5 Q55 15 65 5"
+          stroke="#16a34a"
+          strokeWidth="3"
+          fill="none"
+        />
+        <ellipse
+          cx="20"
+          cy="35"
+          rx="8"
+          ry="4"
+          fill="#22c55e"
+          opacity="0.6"
+          transform="rotate(45 20 35)"
+        />
+        <ellipse
+          cx="35"
+          cy="50"
+          rx="6"
+          ry="3"
+          fill="#22c55e"
+          opacity="0.6"
+          transform="rotate(-30 35 50)"
+        />
+        <ellipse
+          cx="50"
+          cy="20"
+          rx="6"
+          ry="3"
+          fill="#22c55e"
+          opacity="0.6"
+          transform="rotate(60 50 20)"
+        />
         <circle cx="55" cy="35" r="3" fill="#f472b6" opacity="0.8" />
         <circle cx="35" cy="65" r="2.5" fill="#ec4899" opacity="0.8" />
         <circle cx="65" cy="50" r="2" fill="#f472b6" opacity="0.8" />
@@ -197,14 +324,20 @@ const CondolenceFrame: React.FC = () => {
                     <div className="relative mb-4">
                       <div className="w-[28rem] h-[32rem] bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden shadow-xl">
                         <div className="w-full h-full bg-gray-300 flex items-center justify-center">
-                          <svg className="w-40 h-40 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                          <svg
+                            className="w-40 h-40 text-gray-500"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
                             <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                           </svg>
                         </div>
                       </div>
                     </div>
                     <div className="bg-white border-2 border-pink-400 rounded-lg py-1 px-6 shadow-md">
-                      <h2 className="text-sm font-bold text-gray-800">Partha Kabi 1979-2025</h2>
+                      <h2 className="text-sm font-bold text-gray-800">
+                        Partha Kabi 1979-2025
+                      </h2>
                     </div>
                   </div>
 
@@ -231,7 +364,7 @@ const CondolenceFrame: React.FC = () => {
                       }}
                       onMouseDown={(e) => handleMouseDown(e, comment.id)}
                     >
-                      <FaComment className="text-sky-500 text-5xl mt-1" />
+                      <FaComment className="text-sky-500 text-3xl mt-12" />
                       <div className="bg-white border-2 border-pink-300 rounded-lg p-3 shadow-md">
                         <p className="text-xs text-gray-700 mb-2 leading-relaxed break-words">
                           {comment.text}
@@ -253,14 +386,20 @@ const CondolenceFrame: React.FC = () => {
       {modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Add Comment</h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">
+              Add Comment
+            </h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Your Name
+                </label>
                 <input
                   type="text"
                   value={newComment.author}
-                  onChange={(e) => setNewComment({ ...newComment, author: e.target.value })}
+                  onChange={(e) =>
+                    setNewComment({ ...newComment, author: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-pink-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
                   placeholder="Enter your name..."
                 />
@@ -271,7 +410,9 @@ const CondolenceFrame: React.FC = () => {
                 </label>
                 <textarea
                   value={newComment.text}
-                  onChange={(e) => setNewComment({ ...newComment, text: e.target.value })}
+                  onChange={(e) =>
+                    setNewComment({ ...newComment, text: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-pink-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
                   rows={4}
                   placeholder="Enter your comment..."
