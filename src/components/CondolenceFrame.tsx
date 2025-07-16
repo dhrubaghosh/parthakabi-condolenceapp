@@ -204,7 +204,7 @@ const CondolenceFrame: React.FC = () => {
                       </div>
                     </div>
                     <div className="bg-white border-2 border-pink-400 rounded-lg py-1 px-6 shadow-md">
-                      <h2 className="text-sm font-bold text-gray-800">Partha Kabi 1975-2025</h2>
+                      <h2 className="text-sm font-bold text-gray-800">Partha Kabi 1979-2025</h2>
                     </div>
                   </div>
 
