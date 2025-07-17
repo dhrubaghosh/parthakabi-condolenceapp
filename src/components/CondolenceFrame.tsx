@@ -15,7 +15,7 @@ interface Comment {
 interface NewComment {
   text: string;
   author: string;
-}
+}     // temp
 
 const CondolenceFrame: React.FC = () => {
   const [comments, setComments] = useState<Comment[]>([]);
