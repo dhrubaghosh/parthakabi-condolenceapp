@@ -36,7 +36,7 @@ const CondolenceFrame: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [showNextPage, setShowNextPage] = useState(true);
   // const [nextPageClicks, setNextPageClicks] = useState<number[]>([]);
-  const commentsPerPage = 5; // Show 5 comments per page
+  const commentsPerPage = 6; // Show 6 comments per page
 
   // Function to check if position overlaps with photo area
   const isOverlappingPhoto = (
