@@ -32,6 +32,12 @@ const CondolenceFrame: React.FC = () => {
   const [showAddComment, setShowAddComment] = useState(true);
   const [loading, setLoading] = useState(true);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [showNextPage, setShowNextPage] = useState(true);
+  // const [nextPageClicks, setNextPageClicks] = useState<number[]>([]);
+  const commentsPerPage = 5; // Show 5 comments per page
+
   // Function to check if position overlaps with photo area
   const isOverlappingPhoto = (
     x: number,
@@ -99,13 +105,13 @@ const CondolenceFrame: React.FC = () => {
       setLoading(true);
       const commentsCollection = collection(db, "comments");
       const commentsSnapshot = await getDocs(commentsCollection);
-      
+
       const loadedComments: Comment[] = [];
       commentsSnapshot.forEach((doc) => {
-        const data = doc.data() as Omit<Comment, 'id'>;
+        const data = doc.data() as Omit<Comment, "id">;
         loadedComments.push({
           id: doc.id,
-          ...data
+          ...data,
         });
       });
 
@@ -129,12 +135,12 @@ const CondolenceFrame: React.FC = () => {
           y: 200,
         },
       ];
-      
+
       const safeComments = initialComments.map((comment) => {
         const safePos = findSafePosition(comment.x, comment.y);
         return { ...comment, ...safePos };
       });
-      
+
       setComments(safeComments);
     } finally {
       setLoading(false);
@@ -153,14 +159,34 @@ const CondolenceFrame: React.FC = () => {
     setNewComment((prev) => ({ ...prev, author: saved }));
   }, []);
 
+  // Get comments for current page
+  const getCurrentPageComments = () => {
+    const startIndex = currentPage * commentsPerPage;
+    const endIndex = startIndex + commentsPerPage;
+    return comments.slice(startIndex, endIndex);
+  };
+
+  // Check if there are more pages
+  const hasNextPage = () => {
+    return (currentPage + 1) * commentsPerPage < comments.length;
+  };
+
   const handleFrameClick = () => {
     const now = Date.now();
     const recentClicks = [...clicks, now].filter((t) => now - t <= 500);
     if (recentClicks.length >= 3) {
+      // Hide both buttons when triple-clicking the frame
       setShowAddComment(false);
+      setShowNextPage(false);
       setClicks([]);
     } else {
       setClicks(recentClicks);
+    }
+  };
+
+  const handleNextPageClick = () => {
+    if (hasNextPage()) {
+      setCurrentPage(currentPage + 1);
     }
   };
 
@@ -202,13 +228,13 @@ const CondolenceFrame: React.FC = () => {
           author: newComment.author,
           x: safePos.x,
           y: safePos.y,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
 
         // Add to Firestore
         const commentsCollection = collection(db, "comments");
         const docRef = await addDoc(commentsCollection, commentData);
-        
+
         // Add to local state
         const newCommentObj: Comment = {
           id: docRef.id,
@@ -397,16 +423,28 @@ const CondolenceFrame: React.FC = () => {
                     </div>
                   </div>
 
-                  {showAddComment && (
-                    <button
-                      onClick={openModal}
-                      className="absolute top-8 right-8 bg-pink-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-pink-600 transition-colors font-medium z-20"
-                    >
-                      + Add Comment
-                    </button>
-                  )}
+                  {/* Top buttons */}
+                  <div className="absolute top-8 right-8 flex space-x-3 z-20">
+                    {showAddComment && (
+                      <button
+                        onClick={openModal}
+                        className="bg-pink-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-pink-600 transition-colors font-medium"
+                      >
+                        + Add Comment
+                      </button>
+                    )}
+                    {showNextPage && hasNextPage() && (
+                      <button
+                        onClick={handleNextPageClick}
+                        className="bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-blue-600 transition-colors font-medium"
+                      >
+                        Next Page
+                      </button>
+                    )}
+                  </div>
 
-                  {comments.map((comment) => (
+                  {/* Comments for current page */}
+                  {getCurrentPageComments().map((comment) => (
                     <div
                       key={comment.id}
                       className={`absolute flex items-start space-x-2 cursor-move select-none ${
