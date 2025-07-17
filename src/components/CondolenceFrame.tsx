@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaComment } from "react-icons/fa";
 import { db } from "../firebase";
 import { collection, getDocs, addDoc, DocumentData } from "firebase/firestore";
+<<<<<<< HEAD
 import parthaImg from "../assets/Partha.png";
+=======
+>>>>>>> 60598d527b205f27169828005041f2e44f331f4a
 
 interface Comment {
   id: number;
@@ -325,17 +328,31 @@ const CondolenceFrame: React.FC = () => {
                     <div className="relative mb-4">
                       <div className="w-[28rem] h-[32rem] bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden shadow-xl">
                         <div className="w-full h-full bg-gray-300 flex items-center justify-center">
+<<<<<<< HEAD
                           <img
                             src={parthaImg}
                             alt="Partha Kabi"
                             className="w-full h-full object-cover"
                           />
+=======
+                          <svg
+                            className="w-40 h-40 text-gray-500"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                          </svg>
+>>>>>>> 60598d527b205f27169828005041f2e44f331f4a
                         </div>
                       </div>
                     </div>
                     <div className="bg-white border-2 border-pink-400 rounded-lg py-1 px-6 shadow-md">
                       <h2 className="text-sm font-bold text-gray-800">
+<<<<<<< HEAD
                         Partha Kabi 1981-2025
+=======
+                        Partha Kabi 1979-2025
+>>>>>>> 60598d527b205f27169828005041f2e44f331f4a
                       </h2>
                     </div>
                   </div>
