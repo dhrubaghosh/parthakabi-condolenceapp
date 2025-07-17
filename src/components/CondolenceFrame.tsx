@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaComment } from "react-icons/fa";
 import { db } from "../firebase";
 import { collection, getDocs, addDoc, DocumentData } from "firebase/firestore";
-import parthaImg from "../assets/Partha.png";    /*This is right*/
+import parthaImg from "../assets/Partha.png";
 
 interface Comment {
-  id: number;
+  id: string; // Changed from number to string for Firestore compatibility
   text: string;
   author: string;
   x: number;
@@ -15,7 +15,7 @@ interface Comment {
 interface NewComment {
   text: string;
   author: string;
-}     // temp
+}
 
 const CondolenceFrame: React.FC = () => {
   const [comments, setComments] = useState<Comment[]>([]);
@@ -25,11 +25,12 @@ const CondolenceFrame: React.FC = () => {
     author: "",
   });
   const [savedAuthor, setSavedAuthor] = useState<string>("");
-  const [draggedComment, setDraggedComment] = useState<number | null>(null);
+  const [draggedComment, setDraggedComment] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const frameRef = useRef<HTMLDivElement>(null);
   const [clicks, setClicks] = useState<number[]>([]);
   const [showAddComment, setShowAddComment] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   // Function to check if position overlaps with photo area
   const isOverlappingPhoto = (
@@ -41,13 +42,11 @@ const CondolenceFrame: React.FC = () => {
     const frameRect = frameRef.current?.getBoundingClientRect();
     if (!frameRect) return false;
 
-    // Photo area (center of frame)
-    const photoX = (frameRect.width - 448) / 2; // 28rem = 448px
-    const photoY = (frameRect.height - 512) / 2; // 32rem = 512px
+    const photoX = (frameRect.width - 448) / 2;
+    const photoY = (frameRect.height - 512) / 2;
     const photoWidth = 448;
-    const photoHeight = 512 + 60; // include name plaque
+    const photoHeight = 512 + 60;
 
-    // Check if comment box overlaps with photo area
     return !(
       x + width < photoX ||
       x > photoX + photoWidth ||
@@ -64,27 +63,25 @@ const CondolenceFrame: React.FC = () => {
     const commentWidth = 420;
     const commentHeight = 100;
 
-    // Try original position first
     if (
       !isOverlappingPhoto(preferredX, preferredY, commentWidth, commentHeight)
     ) {
       return { x: preferredX, y: preferredY };
     }
 
-    // Try positions around the photo
     const positions = [
-      { x: 50, y: 50 }, // Top left
-      { x: frameRect.width - commentWidth - 50, y: 50 }, // Top right
-      { x: 50, y: frameRect.height - commentHeight - 50 }, // Bottom left
+      { x: 50, y: 50 },
+      { x: frameRect.width - commentWidth - 50, y: 50 },
+      { x: 50, y: frameRect.height - commentHeight - 50 },
       {
         x: frameRect.width - commentWidth - 50,
         y: frameRect.height - commentHeight - 50,
-      }, // Bottom right
-      { x: 50, y: frameRect.height / 2 - commentHeight / 2 }, // Left middle
+      },
+      { x: 50, y: frameRect.height / 2 - commentHeight / 2 },
       {
         x: frameRect.width - commentWidth - 50,
         y: frameRect.height / 2 - commentHeight / 2,
-      }, // Right middle
+      },
     ];
 
     for (const pos of positions) {
@@ -93,30 +90,60 @@ const CondolenceFrame: React.FC = () => {
       }
     }
 
-    // Fallback to original position if no safe position found
     return { x: preferredX, y: preferredY };
   };
 
-  // Load initial comments with safe positioning
+  // Load comments from Firestore
+  const loadComments = async () => {
+    try {
+      setLoading(true);
+      const commentsCollection = collection(db, "comments");
+      const commentsSnapshot = await getDocs(commentsCollection);
+      
+      const loadedComments: Comment[] = [];
+      commentsSnapshot.forEach((doc) => {
+        const data = doc.data() as Omit<Comment, 'id'>;
+        loadedComments.push({
+          id: doc.id,
+          ...data
+        });
+      });
+
+      // Position comments safely
+      const safeComments = loadedComments.map((comment) => {
+        const safePos = findSafePosition(comment.x, comment.y);
+        return { ...comment, ...safePos };
+      });
+
+      setComments(safeComments);
+      console.log("✅ Comments loaded from Firestore:", safeComments.length);
+    } catch (error) {
+      console.error("❌ Error loading comments:", error);
+      // Fallback to initial comment if Firestore fails
+      const initialComments = [
+        {
+          id: "initial",
+          text: "Deeply saddened by the loss, your kindness will always be remembered.",
+          author: "Dhrubajyoti Ghosh",
+          x: 100,
+          y: 200,
+        },
+      ];
+      
+      const safeComments = initialComments.map((comment) => {
+        const safePos = findSafePosition(comment.x, comment.y);
+        return { ...comment, ...safePos };
+      });
+      
+      setComments(safeComments);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load initial comments from Firestore
   useEffect(() => {
-    // Simulate loading comments (replace with your Firestore logic)
-    const initialComments = [
-      {
-        id: 1,
-        text: "Deeply saddened by the loss, your kindness will always be remembered.",
-        author: "Dhrubajyoti Ghosh",
-        x: 100,
-        y: 200,
-      },
-    ];
-
-    // Position comments safely
-    const safeComments = initialComments.map((comment) => {
-      const safePos = findSafePosition(comment.x, comment.y);
-      return { ...comment, ...safePos };
-    });
-
-    setComments(safeComments);
+    loadComments();
   }, []);
 
   // Load saved author name from memory on mount
@@ -153,6 +180,7 @@ const CondolenceFrame: React.FC = () => {
       .split(/\s+/)
       .filter((word) => word.length > 0).length;
 
+  // Save comment to Firestore
   const addComment = async () => {
     if (newComment.text.trim() && newComment.author.trim()) {
       const wordCount = getWordCount(newComment.text);
@@ -163,26 +191,44 @@ const CondolenceFrame: React.FC = () => {
         return;
       }
 
-      // Find a safe position for the new comment
-      const baseX = 100;
-      const baseY = 200 + (comments.length % 5) * 150;
-      const safePos = findSafePosition(baseX, baseY);
+      try {
+        // Find a safe position for the new comment
+        const baseX = 100;
+        const baseY = 200 + (comments.length % 5) * 150;
+        const safePos = findSafePosition(baseX, baseY);
 
-      const newCommentObj: Comment = {
-        id: Date.now(),
-        text: newComment.text,
-        author: newComment.author,
-        ...safePos,
-      };
+        const commentData = {
+          text: newComment.text,
+          author: newComment.author,
+          x: safePos.x,
+          y: safePos.y,
+          timestamp: new Date().toISOString()
+        };
 
-      setComments([...comments, newCommentObj]);
-      setSavedAuthor(newComment.author);
-      closeModal();
-      console.log("✅ Comment added");
+        // Add to Firestore
+        const commentsCollection = collection(db, "comments");
+        const docRef = await addDoc(commentsCollection, commentData);
+        
+        // Add to local state
+        const newCommentObj: Comment = {
+          id: docRef.id,
+          text: newComment.text,
+          author: newComment.author,
+          ...safePos,
+        };
+
+        setComments([...comments, newCommentObj]);
+        setSavedAuthor(newComment.author);
+        closeModal();
+        console.log("✅ Comment added to Firestore with ID:", docRef.id);
+      } catch (error) {
+        console.error("❌ Error adding comment:", error);
+        alert("Failed to add comment. Please try again.");
+      }
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent, commentId: number) => {
+  const handleMouseDown = (e: React.MouseEvent, commentId: string) => {
     e.preventDefault();
     const comment = comments.find((c) => c.id === commentId);
     if (!comment) return;
@@ -300,6 +346,17 @@ const CondolenceFrame: React.FC = () => {
       </svg>
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="bg-gradient-to-br from-gray-100 to-gray-200 h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Loading comments...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gradient-to-br from-gray-100 to-gray-200 h-screen overflow-hidden">
