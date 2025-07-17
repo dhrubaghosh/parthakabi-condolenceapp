@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaComment } from "react-icons/fa";
 import { db } from "../firebase";
 import { collection, getDocs, addDoc, DocumentData } from "firebase/firestore";
-import parthaImg from "../assets/Partha.png";
+import parthaImg from "../assets/Partha.png"; /*Right*/
 
 interface Comment {
   id: number;
